@@ -7,7 +7,7 @@ Discord-Webhook-Protector is a simple, FastAPI-powered app that safeguards your 
 ## Installation
 
 There is two ways of using this app, deploying it on your own (Im not going to make a guide for that but its simple)
-or to use my free to use and fully deployed one: [https://dcrelay.liteeaglee.me](https://dcrelay.liteeagle.me/).
+or to use my free to use and fully deployed one: [https://dcrelay.liteeagle.me](https://dcrelay.liteeagle.me/).
 
 It's pretty simple to use, you input a discord webhook onto the site, click create, and it will output you a relay URL, you just replace wherever your webhook was with that relay URL
 and your good, no one can delete your webhook, and no one can spam it/rate limit it.
