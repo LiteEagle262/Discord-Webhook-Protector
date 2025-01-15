@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="https://i.ibb.co/Cw2tz0c/eagle.jpg">
+    <title>Discord Webhook Relay Tool</title>
+    <meta content="Discord Webhook Relay Tool" property="og:title" />
+    <meta content="LiteEagle262 Contact information, and storage, This " property="og:description" />
+    <meta content="https://liteeagle.me/" property="og:url" />
+    <meta content="https://i.ibb.co/Cw2tz0c/eagle.jpg" property="og:image" />
+    <meta content="#6d00c1" data-react-helmet="true" name="theme-color" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            color: #212529;
+        }
+        
+        .webhook-container {
+            max-width: 800px;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            margin: 2rem auto;
+        }
+
+        .page-title {
+            color: #2d3748;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        .info-banner {
+            background-color: #e3f2fd;
+            border-left: 4px solid #1e88e5;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            border-radius: 4px;
+        }
+
+        .form-control {
+            border-radius: 8px;
+            padding: 0.75rem;
+            border: 2px solid #e2e8f0;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            border-color: #3182ce;
+            box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
+        }
+
+        .btn-primary {
+            background-color: #3182ce;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            background-color: #2c5282;
+            transform: translateY(-1px);
+        }
+
+        .webhook-counter {
+            text-align: center;
+            font-size: 1.1rem;
+            color: #4a5568;
+            margin-bottom: 2rem;
+            padding: 0.5rem;
+            background-color: #f7fafc;
+            border-radius: 6px;
+        }
+
+        .footer-text {
+            font-size: 0.875rem;
+            color: #718096;
+            text-align: center;
+            margin-top: 2rem;
+        }
+
+        .documentation-link {
+            display: inline-block;
+            color: #4a5568;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .documentation-link:hover {
+            background-color: #edf2f7;
+            color: #2d3748;
+        }
+
+        .modal-content {
+            border-radius: 12px;
+        }
+
+        .modal-header {
+            border-bottom: 2px solid #e2e8f0;
+            padding: 1.5rem;
+        }
+
+        .modal-body {
+            padding: 2rem;
+        }
+
+        .webhook-id {
+            background-color: #f7fafc;
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-family: monospace;
+            margin: 1rem 0;
+        }
+
+        .copy-button {
+            background-color: #edf2f7;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            margin-left: 0.5rem;
+            transition: all 0.2s ease;
+        }
+
+        .copy-button:hover {
+            background-color: #e2e8f0;
+        }
+    </style>
+</head>
+<body>
+    <div class="webhook-container">
+        <h1 class="page-title">Create Webhook</h1>
+
+        <div class="webhook-counter">
+            Currently Relaying <span id="webhook-count">0</span> webhooks
+        </div>
+
+        <div class="info-banner">
+            <svg class="bi bi-info-circle me-2" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+            </svg>
+            All webhooks are stored safely, and the app is completely open source. 
+            <a href="https://github.com/LiteEagle262/Discord-Webhook-Protector/" target="_blank" class="ms-2 text-decoration-none">View on GitHub →</a>
+        </div>
+
+        <form id="webhook-form">
+            <div class="mb-4">
+                <label for="webhook-url" class="form-label fw-bold">Webhook URL</label>
+                <input type="url" id="webhook-url" class="form-control" placeholder="https://discord.com/api/webhooks/....." required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">
+                Create Webhook
+            </button>
+        </form>
+
+        <p class="footer-text">
+            The operator of this app is not liable for any information relayed through it.
+        </p>
+
+        <div class="text-center mt-4">
+            <a href="/docs" target="_blank" class="documentation-link">
+                View Documentation
+            </a>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal fade" id="webhookModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="modal-title">Webhook Status</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="modal-message" class="mb-4"></p>
+                    
+                    <!-- Success content (hidden by default) -->
+                    <div id="success-content" style="display: none;">
+                        <p class="mb-2 fw-bold">Your Webhook URL:</p>
+                        <div class="webhook-id">
+                            <span id="webhook-link"></span>
+                            <button class="copy-button" onclick="copyToClipboard()">Copy</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        async function updateWebhookCount() {
+            try {
+                const response = await fetch('/count_webhooks');
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('webhook-count').textContent = data.webhook_count;
+                }
+            } catch (error) {
+                console.error('Failed to fetch webhook count:', error);
+            }
+        }
+
+        updateWebhookCount();
+        setInterval(updateWebhookCount, 30000);
+
+        document.getElementById('webhook-form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const url = document.getElementById('webhook-url').value;
+
+            try {
+                const response = await fetch('/AddHook', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url: url
+                    })
+                });
+
+                const data = await response.json();
+                const modalTitle = document.getElementById('modal-title');
+                const modalMessage = document.getElementById('modal-message');
+                const successContent = document.getElementById('success-content');
+                
+                modalMessage.textContent = data.message;
+
+                if (response.ok && data.HookURL) {
+                    modalTitle.textContent = 'Webhook Created Successfully';
+                    document.getElementById('webhook-link').textContent = data.HookURL;
+                    successContent.style.display = 'block';
+                    updateWebhookCount();
+                } else {
+                    modalTitle.textContent = 'Webhook Status';
+                    successContent.style.display = 'none';
+                }
+
+                const modal = new bootstrap.Modal(document.getElementById('webhookModal'));
+                modal.show();
+            } catch (error) {
+                const modal = new bootstrap.Modal(document.getElementById('webhookModal'));
+                document.getElementById('modal-title').textContent = 'Error';
+                document.getElementById('modal-message').textContent = 'Failed to connect to the server. Please try again.';
+                document.getElementById('success-content').style.display = 'none';
+                modal.show();
+            }
+        });
+
+        function copyToClipboard() {
+            const webhookLink = document.getElementById('webhook-link').textContent;
+            navigator.clipboard.writeText(webhookLink)
+                .then(() => {
+                    const button = document.querySelector('.copy-button');
+                    button.textContent = 'Copied!';
+                    setTimeout(() => {
+                        button.textContent = 'Copy';
+                    }, 2000);
+                })
+                .catch(err => {
+                    console.error('Failed to copy text: ', err);
+                });
+        }
+    </script>
+</body>
+</html>
