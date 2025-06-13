@@ -4,8 +4,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, String
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
 import requests
 import time
 import threading
@@ -13,14 +12,31 @@ import uvicorn
 import uuid
 from typing import Optional
 import os
+import hashlib
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_ipaddr
+from slowapi.errors import RateLimitExceeded
 
 endpointurl = "https://dcrelay.liteeagle.me/"
+
+def get_cloudflare_ip(request: Request) -> str:
+    cf_ip = request.headers.get("CF-Connecting-IP")
+    if cf_ip:
+        return cf_ip
+    x_forwarded_for = request.headers.get("X-Forwarded-For")
+    if x_forwarded_for:
+        return x_forwarded_for.split(",")[0].strip()
+    return get_ipaddr(request)
+
+limiter = Limiter(key_func=get_cloudflare_ip, default_limits=["100/minute"])
 
 app = FastAPI(
     title="Webhook Relayer, By LiteEagle262",
     description="This is a simple FastAPI Powered app that will relay webhook requests, allowing your webhook to be protected from spamming, and deletion.\n\nThe /relay endpoint relays it to your discord webhook, all contents etc remain the same.",
     version="1.0.0"
 )
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,11 +53,6 @@ engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-rate_limit_cache = {}
-cache_lock = threading.Lock()
-webhook_creation_cache = {}
-webhook_creation_lock = threading.Lock()
-
 def init_db():
     if not os.path.exists("data.sqlite3"):
         Base.metadata.create_all(bind=engine)
@@ -51,7 +62,6 @@ def init_db():
 
 init_db()
 
-# SQLITE Models
 class Webhook(Base):
     __tablename__ = "webhooks"
     id = Column(String(255), primary_key=True, index=True)
@@ -59,7 +69,6 @@ class Webhook(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# Pydantic Models
 class WebhookPayload(BaseModel):
     content: Optional[str] = None
     username: Optional[str] = None
@@ -77,32 +86,21 @@ def get_db():
         db.close()
         
 @app.get("/")
+@limiter.limit("100/minute")
 async def root(request: Request):
     return templates.TemplateResponse("create.html", {"request": request})
 
 @app.get("/count_webhooks")
-def count_webhooks(db: Session = Depends(get_db)):
+@limiter.limit("100/minute")
+def count_webhooks(request: Request, db: Session = Depends(get_db)):
     count = db.query(Webhook).count()
     return {"webhook_count": count}
 
 @app.post("/AddHook")
+@limiter.limit("3/minute")
 def create_webhook(webhook: CreateWebhook, request: Request, db: Session = Depends(get_db)):
     if not webhook.url.startswith("https://discord.com/api/webhooks/"):
         return {"message": "Invalid Webhook url."}
-
-    current_time = time.time()
-    client_ip = request.client.host
-
-    with webhook_creation_lock:
-        if client_ip in webhook_creation_cache:
-            timestamps = webhook_creation_cache[client_ip]
-            timestamps = [ts for ts in timestamps if current_time - ts < 10]
-            if len(timestamps) >= 5:
-                raise HTTPException(status_code=429, detail="Rate limit exceeded. You can only create 5 webhooks in 10 seconds.")
-            timestamps.append(current_time)
-            webhook_creation_cache[client_ip] = timestamps
-        else:
-            webhook_creation_cache[client_ip] = [current_time]
 
     id = str(uuid.uuid4())
     new_webhook = Webhook(id=id, url=webhook.url)
@@ -110,24 +108,26 @@ def create_webhook(webhook: CreateWebhook, request: Request, db: Session = Depen
     db.commit()
     return {"message": "Webhook created successfully.", "HookURL": f"{endpointurl}relay/{id}"}
 
-@app.post("/relay/{webhook_id}")
-async def relay_webhook(webhook_id: str, payload: WebhookPayload, request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    client_ip = request.client.host
+async def store_payload_in_state(request: Request, payload: WebhookPayload):
+    request.state.json_body = payload.dict(exclude_unset=True)
 
+async def content_hash_key_func(request: Request):
+    ip_address = get_cloudflare_ip(request)
+    try:
+        payload_dict = request.state.json_body
+        serialized_payload = str(sorted(payload_dict.items()))
+        content_hash = hashlib.md5(serialized_payload.encode('utf-8')).hexdigest()
+        return f"{ip_address}:{content_hash}"
+    except Exception:
+        return ip_address
+
+@app.post("/relay/{webhook_id}")
+@limiter.limit("1/15second", key_func=content_hash_key_func, error_message="Duplicate submission detected. Please wait 15 seconds before sending the same content again.")
+async def relay_webhook(webhook_id: str, payload: WebhookPayload, request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db),
+                      _ = Depends(store_payload_in_state)):
     db_webhook = db.query(Webhook).filter(Webhook.id == webhook_id).first()
     if not db_webhook:
         raise HTTPException(status_code=404, detail="Webhook not found.")
-
-    cache_key = f"{client_ip}:{webhook_id}:{hash(frozenset(payload.dict().items()))}"
-    current_time = time.time()
-
-    with cache_lock:
-        if cache_key in rate_limit_cache:
-            last_request_time = rate_limit_cache[cache_key]
-            if current_time - last_request_time < 30:
-                raise HTTPException(status_code=429, detail="Rate limit exceeded. Please wait 30 seconds.")
-
-        rate_limit_cache[cache_key] = current_time
 
     background_tasks.add_task(sendhook, db_webhook.url, payload.dict(exclude_unset=True))
 
@@ -140,24 +140,5 @@ def sendhook(webhook_url: str, payload: dict):
     except requests.RequestException as e:
         print(f"Error relaying webhook: {e}")
 
-def clean_cache():
-    while True:
-        with cache_lock:
-            current_time = time.time()
-
-            rate_limit_keys_to_remove = [key for key, timestamp in rate_limit_cache.items() if current_time - timestamp > 30]
-            for key in rate_limit_keys_to_remove:
-                del rate_limit_cache[key]
-
-            with webhook_creation_lock:
-                for client_ip, timestamps in list(webhook_creation_cache.items()):
-                    webhook_creation_cache[client_ip] = [ts for ts in timestamps if current_time - ts < 10]
-
-                    if not webhook_creation_cache[client_ip]:
-                        del webhook_creation_cache[client_ip]
-
-        time.sleep(60)
-
-threading.Thread(target=clean_cache, daemon=True).start()
-
-uvicorn.run(app, host="0.0.0.0", port=8000)
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
